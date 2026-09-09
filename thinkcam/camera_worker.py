@@ -20,12 +20,20 @@ from thinkcam.constants import (
 )
 from thinkcam.visualizer import render_events
 
+# The four nodes the Biases group in controls.py drives. Names are the ArenaSDK
+# nodemap's, and the order is the order they are written in.
+BIAS_NODES = ("BiasEventThresholdPositive", "BiasEventThresholdNegative",
+              "BiasRefractoryPeriod", "EventBurstFilterEnable")
+
 
 class CameraWorker(QThread):
     frame_ready = Signal(np.ndarray, dict)
     status_message = Signal(str)
     error = Signal(str)
     connected = Signal(int, int)
+    # (settings, ranges, writable_while_streaming) once the stream is up, so the
+    # UI can seed its spinboxes from the hardware rather than from constants.py.
+    bias_state = Signal(dict, dict, bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -35,6 +43,29 @@ class CameraWorker(QThread):
         # so the acquisition loop can submit batches directly without going
         # through Qt signals — keeps high-rate event data off the GUI thread.
         self.raw_recorder = None
+        # Same contract for the live probe: it owns its own mutex and never
+        # blocks, so the acquisition loop hands it batches directly.
+        self.probe_worker = None
+        # Pending bias writes, drained at the top of the acquisition loop.
+        # Nodemap writes must happen on the thread that owns the device, so the
+        # GUI thread can only leave them here.
+        self._pending_biases = None
+        self._biases = {
+            "BiasEventThresholdPositive": BIAS_THRESHOLD_POS,
+            "BiasEventThresholdNegative": BIAS_THRESHOLD_NEG,
+            "BiasRefractoryPeriod": BIAS_REFRACTORY,
+            "EventBurstFilterEnable": BURST_FILTER_ENABLE,
+        }
+
+    def set_biases(self, settings: dict):
+        """Queue a bias change from the GUI thread. Applied on the next loop."""
+        with QMutexLocker(self._lock):
+            self._pending_biases = dict(settings)
+
+    def biases(self) -> dict:
+        """The values currently in effect, for the recording's metadata."""
+        with QMutexLocker(self._lock):
+            return dict(self._biases)
 
     def stop(self):
         with QMutexLocker(self._lock):
@@ -76,23 +107,59 @@ class CameraWorker(QThread):
 
         return saved
 
-    def _configure_noise_filters(self, device) -> dict:
-        nm = device.nodemap
+    def _apply_biases(self, nm, settings: dict) -> dict:
+        """Write the bias nodes; return whatever each one held beforehand.
+
+        Shared by the pre-stream configuration and the live mailbox drain, so a
+        bias set the same way in both places cannot drift between them. Every
+        access stays inside try/except, matching the rest of this file: a node
+        the firmware does not expose must not take the stream down.
+        """
         saved = {}
-        settings = {
-            "BiasEventThresholdPositive": BIAS_THRESHOLD_POS,
-            "BiasEventThresholdNegative": BIAS_THRESHOLD_NEG,
-            "BiasRefractoryPeriod": BIAS_REFRACTORY,
-            "EventBurstFilterEnable": BURST_FILTER_ENABLE,
-        }
+        applied = {}
         for node_name, new_val in settings.items():
             try:
                 node = nm[node_name]
                 saved[node_name] = node.value
                 node.value = new_val
+                applied[node_name] = node.value
             except Exception:
                 pass
+        if applied:
+            with QMutexLocker(self._lock):
+                self._biases.update(applied)
         return saved
+
+    def _configure_noise_filters(self, device) -> dict:
+        return self._apply_biases(device.nodemap, self.biases())
+
+    def _probe_bias_nodes(self, nm) -> tuple[dict, dict, bool]:
+        """VERIFY-FIRST (plan §5): are these nodes writable WHILE streaming?
+
+        Every write in this file before this change happened before
+        start_stream(), so the answer was never established. IMX636 biases are
+        generally live-writable, but ArenaSDK may mark the nodes read-only while
+        acquiring. This asks the nodemap directly, after the stream is up, and
+        the UI is built around the answer rather than around an assumption.
+
+        Also reads each node's legal range, which is the second unknown -- the
+        spinboxes are seeded from node.min/node.max where they exist and fall
+        back to the constants where they do not.
+        """
+        settings, ranges = {}, {}
+        writable = True
+        for name in BIAS_NODES:
+            try:
+                node = nm[name]
+                settings[name] = node.value
+                if not bool(getattr(node, "is_writable", True)):
+                    writable = False
+                lo, hi = getattr(node, "min", None), getattr(node, "max", None)
+                if lo is not None and hi is not None:
+                    ranges[name] = (lo, hi)
+            except Exception:
+                continue
+        return settings, ranges, writable
 
     @staticmethod
     def _decode_xytp(buffer) -> np.ndarray:
@@ -142,6 +209,14 @@ class CameraWorker(QThread):
         saved_noise = self._configure_noise_filters(device)
         device.start_stream(NUM_BUFFERS)
 
+        # Answered on hardware, after start_stream, and reported to the UI --
+        # see _probe_bias_nodes.
+        bias_now, bias_ranges, bias_writable = self._probe_bias_nodes(nm)
+        self.bias_state.emit(bias_now, bias_ranges, bias_writable)
+        self.status_message.emit(
+            "Biases writable while streaming" if bias_writable else
+            "Biases are READ-ONLY while streaming — stop the stream to change them")
+
         # The camera delivers buffers far faster than the GUI can paint, so we
         # consume every buffer but only render/emit one accumulated frame per
         # display interval. This keeps raw recording lossless while preventing
@@ -156,6 +231,11 @@ class CameraWorker(QThread):
                 with QMutexLocker(self._lock):
                     if not self._running:
                         break
+
+                with QMutexLocker(self._lock):
+                    pending, self._pending_biases = self._pending_biases, None
+                if pending:
+                    self._apply_biases(nm, pending)
 
                 try:
                     buffer = device.get_buffer(timeout=IMAGE_TIMEOUT_MS)
@@ -173,6 +253,12 @@ class CameraWorker(QThread):
                 # Lossless: every buffer is recorded, regardless of display rate.
                 if self.raw_recorder is not None and self.raw_recorder.is_recording:
                     self.raw_recorder.submit(events)
+
+                # The probe needs EVENTS, not the rendered BGR image _on_frame
+                # receives, and it needs every batch: ev/lit-px is a count per
+                # pixel, so a sampled stream would read a fraction of the truth.
+                if self.probe_worker is not None:
+                    self.probe_worker.submit(events)
 
                 accum.append(events)
 
@@ -199,6 +285,7 @@ class CameraWorker(QThread):
                     "render_ms": render_ms,
                     "pos_count": pos_count,
                     "neg_count": neg_count,
+                    "biases": self.biases(),
                 }
 
                 self.frame_ready.emit(bgr, stats)

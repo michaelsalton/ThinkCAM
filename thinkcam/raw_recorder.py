@@ -53,6 +53,7 @@ class RawEventRecorder:
         self._width = 0
         self._height = 0
         self._label = ""
+        self._biases: dict = {}
         self._start_monotonic = 0.0
         self._start_utc = ""
 
@@ -69,13 +70,28 @@ class RawEventRecorder:
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def start(self, width: int, height: int, label: str = "") -> str:
+    def start(self, width: int, height: int, label: str = "",
+              biases: dict | None = None) -> str:
+        """`biases` is the set actually in effect, read back from the camera.
+
+        Before biases were adjustable, _write_metadata hardcoded the four
+        constants — which is why all nine existing takes record 10/10/10/true:
+        that is all the code could say, not necessarily what the sensor was
+        doing. Passing them in makes the sidecar a record instead of an echo.
+        Falls back to the constants when the caller has nothing better.
+        """
         if self._is_recording:
             return self._session_dir or ""
 
         self._width = width
         self._height = height
         self._label = label.strip()
+        self._biases = dict(biases) if biases else {
+            "BiasEventThresholdPositive": BIAS_THRESHOLD_POS,
+            "BiasEventThresholdNegative": BIAS_THRESHOLD_NEG,
+            "BiasRefractoryPeriod": BIAS_REFRACTORY,
+            "EventBurstFilterEnable": BURST_FILTER_ENABLE,
+        }
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         name = f"{ts}_{self._label}" if self._label else ts
@@ -239,10 +255,14 @@ class RawEventRecorder:
             "dropped_events": dropped,
             "lossless": dropped == 0,
             "biases": {
-                "threshold_positive": BIAS_THRESHOLD_POS,
-                "threshold_negative": BIAS_THRESHOLD_NEG,
-                "refractory_period": BIAS_REFRACTORY,
-                "burst_filter": BURST_FILTER_ENABLE,
+                "threshold_positive":
+                    self._biases.get("BiasEventThresholdPositive"),
+                "threshold_negative":
+                    self._biases.get("BiasEventThresholdNegative"),
+                "refractory_period":
+                    self._biases.get("BiasRefractoryPeriod"),
+                "burst_filter":
+                    self._biases.get("EventBurstFilterEnable"),
             },
             "noise_filter": {
                 "background_activity_filter": None,

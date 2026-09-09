@@ -1,3 +1,5 @@
+import os
+
 import cv2
 
 CAMERA_IP = "169.254.80.199"
@@ -41,3 +43,46 @@ RAW_HDF5_CHUNK = 1_000_000
 # files (~13 bytes/event vs ~8.4 compressed). Lossless capture wins; set to
 # "lzf" or "gzip" only for long takes where disk space matters more than rate.
 RAW_HDF5_COMPRESSION = None
+
+# --------------------------------------------------------------------------
+# Capture probe (plans/01_CaptureDashboard.md)
+# --------------------------------------------------------------------------
+# The pipeline window is PINNED to the best configuration on record --
+# work/phase1b/tracked_mc25k, 25 k events per frame with motion compensation on,
+# which produced 12 fragments at mean track length 3.07-4.37. This is a
+# correction to Phase1b-Results.md, which used 200 k and judged compensation not
+# worth 1.7x the cost: that held for the SIFT path, not the LK one. Changing
+# these numbers makes a probe incomparable with every earlier probe, so change
+# them only together with a new reference run.
+PROBE_EVENTS_PER_FRAME = 25_000
+PROBE_STRIDE = 25_000            # no overlap, as that run used
+PROBE_MOTION_COMP = True
+# track_frames' own default is 10. tracked_mc25k was run at 12, and the
+# difference is not cosmetic: with bit-identical LK tracks (81,823 keypoints
+# either way), 10 gives 7 fragments with the largest covering 24 frames / 0.63 s,
+# and 12 gives 12 fragments with the largest covering 37 frames / 1.04 s -- union
+# coverage 55% vs 84%. So it is pinned here too, or a probe is not comparable
+# with the one result on record. It is also the first hard evidence for
+# plans/01_CaptureDashboard.md §9's suspicion that --max-gap tuning moves
+# fragmentation before the sensor is the limit.
+PROBE_MAX_GAP = 12
+
+# Events per lit pixel needs TWO windows. Measured on the take every wiki number
+# came from: 1.07 ev/lit-px at the 25 k pipeline window, 1.21 at 200 k, 2.27 at
+# 2.0 s. A 76x longer window buys 2x the density, because a moving camera paints
+# a wider swath rather than building up the same pixels. A >= 5 gate at the
+# pipeline window is therefore unreachable by construction; it hangs on the
+# reference window instead.
+PROBE_REFERENCE_S = 2.0
+PROBE_EV_PER_LIT_TARGET = 5.0    # Phase1b-Results.md §9.1, vs the REFERENCE window
+
+PROBE_UPDATE_HZ = 2.0
+PROBE_MOTION_SEARCH_EVENTS = 30_000
+PROBE_WORK_DIR = "work/probe"
+
+# The GUI venv carries arena_api + PySide6; the analysis tools need numpy/h5py/
+# cv2 and the `colmap` binary, which live in a separate environment. The GUI
+# shells the full probe out to this interpreter rather than importing it.
+PROBE_PYTHON = os.environ.get(
+    "THINKCAM_PROBE_PYTHON", os.path.expanduser("~/envs/phase1/bin/python")
+)

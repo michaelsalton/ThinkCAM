@@ -8,6 +8,7 @@ later workstream". Everything upstream of intensity frames is **built and valida
 everything from intensity frames onward is **absent**. This document is the plan to close
 that gap.
 
+
 ---
 
 ## 0. What Phase 1 is, and what it is not

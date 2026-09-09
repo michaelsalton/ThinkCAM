@@ -12,7 +12,7 @@ track length but FRAGMENTS -- the reference run reaches mean track length 3.53
 and still breaks into twelve disconnected models, the largest covering 1.04 s.
 
 The gate table is rendered from probe.json's `gates` array without interpreting
-any of it: capture_probe.py prints and serialises from one list, so a metric
+any of it: capture_probe prints and serialises from one list, so a metric
 added there appears here with no change to this file.
 """
 

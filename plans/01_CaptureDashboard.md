@@ -105,12 +105,12 @@ worth 1.7× the cost — that held for the SIFT path, not the LK one.
 
 ---
 
-## 2. `capture_probe.py` (new, repo root)
+## 2. `capture_probe.py` (new, in `pipeline/`)
 
 Orchestrates the full pipeline on a finished take. Always runs everything; no tiers.
 
 ```
-python capture_probe.py --input recordings/<session> [--out work/probe/<take>]
+python -m pipeline.capture_probe --input recordings/<session> [--out work/probe/<take>]
     --events-per-frame 25000      # PROBE_EVENTS_PER_FRAME
     --stride 25000
     --start-s / --duration-s      # optional segment
@@ -121,10 +121,10 @@ python capture_probe.py --input recordings/<session> [--out work/probe/<take>]
 
 Each step shelled out, stdout+stderr tee'd to `<out>/<step>.log`:
 
-1. `accumulate_frames.py --input <rec> --out <out>/input --motion-comp` — frames.
-2. `track_frames.py --frames <out> --out <out> --run-colmap` — LK tracks, then COLMAP via
+1. `pipeline.accumulate_frames --input <rec> --out <out>/input --motion-comp` — frames.
+2. `pipeline.track_frames --frames <out> --out <out> --run-colmap` — LK tracks, then COLMAP via
    `feature_importer` / `matches_importer` / `mapper`, which it already drives itself
-   (`track_frames.py:228-236`).
+   (`pipeline/track_frames.py:228-236`).
 3. Fragment analysis (new, §4) over every `<out>/sparse/*` model.
 
 Then one table and one `probe.json`:
@@ -142,17 +142,17 @@ Then one table and one `probe.json`:
 | Mean track length (largest) | `colmap model_analyzer` | > 3.0 |
 
 Follow the family reporting idiom — the `# ---- Report (print chosen conventions...)`
-block at `convert_to_inceventgs.py:252` — printing a banner that restates window, stride,
+block at `pipeline/convert_to_inceventgs.py:252` — printing a banner that restates window, stride,
 compensation and `norm_hi` actually used, then the gate table via `frame_metrics._fmt`
-(`frame_metrics.py:63`), which already formats `[PASS]`/`[FAIL]` lines. Writing
+(`pipeline/frame_metrics.py:72`), which already formats `[PASS]`/`[FAIL]` lines. Writing
 `probe.json` is a deliberate departure from the family's stdout-only habit, because the
 GUI needs a machine-readable result; the human report stays primary.
 
-Reuse rather than reimplement: `_resolve_input` (`convert_to_inceventgs.py:47`, the single
+Reuse rather than reimplement: `_resolve_input` (`pipeline/convert_to_inceventgs.py:47`, the single
 canonical path resolver used by every tool), `resolve_geometry`
-(`export_e2vid_input.py:68`), `event_chunks` (`export_e2vid_input.py:85`, the canonical
+(`pipeline/export_e2vid_input.py:68`), `event_chunks` (`pipeline/export_e2vid_input.py:85`, the canonical
 streaming read — never `load_events`, which slurps 676 MB), `accumulate`
-(`accumulate_frames.py:87`), `_fmt` and `load_frames` (`frame_metrics.py:63`, `:71`).
+(`pipeline/accumulate_frames.py:93`), `_fmt` and `load_frames` (`pipeline/frame_metrics.py:72`, `:80`).
 
 **Runtime.** `/usr/bin/colmap` is 3.12.6 built **without CUDA**, so the mapper is CPU-only
 regardless of the healthy RTX 5080 — every existing script already passes
@@ -177,11 +177,11 @@ keeps the estimator off the acquisition thread, which must sustain ~1.7 k buffer
 
 All from existing primitives:
 
-- `counts = accumulate_frames.accumulate(x, y, width, height)` (`accumulate_frames.py:87`)
+- `counts = accumulate_frames.accumulate(x, y, width, height)` (`pipeline/accumulate_frames.py:93`)
   — the `np.bincount(y*width + x)` unsigned-count image. Then `lit = (counts > 0).sum()`,
   `ev_per_lit = counts.sum() / lit`, `lit_coverage = lit / (width * height)`.
 - `speed = hypot(*estimate_motion(...)[:2])` on a `subsample(n, 30_000)` slice
-  (`accumulate_frames.py:193`). `estimate_motion` carries the spatial-binning fix from
+  (`pipeline/accumulate_frames.py:183`). `estimate_motion` carries the spatial-binning fix from
   `Phase1b-Results.md` §4, without which it returns `v ≈ 0` on this data — do not
   reimplement the search.
 
@@ -219,7 +219,7 @@ popup. Two sections:
 Kept in the CLI tools rather than the GUI, so they stay independently useful.
 
 **Fragment analysis — the metric this plan is really about.** `find_sparse`
-(`frame_metrics.py:393`) returns whichever `sparse/*` dir holds the largest `images.*`
+(`pipeline/frame_metrics.py:393`) returns whichever `sparse/*` dir holds the largest `images.*`
 file, and `cmd_colmap` (`:412`) then reports `registered / n_input`. Against
 `tracked_mc25k` that yields "37/200, track 3.53" and never reveals that eleven other
 models exist — it reads as a registration failure when it is a connectivity failure. Add
@@ -228,12 +228,12 @@ models exist — it reads as a registration failure when it is a connectivity fa
 - enumerate every `<scene>/sparse/*` containing `images.bin`/`images.txt`;
 - for each, run `colmap model_analyzer` and regex-parse it exactly as `cmd_colmap`
   already does (`:422-424`);
-- read registered image names with `view_sparse.load_model` (`view_sparse.py:39`, which
+- read registered image names with `view_sparse.load_model` (`pipeline/view_sparse.py:39`, which
   parses `images.txt` and converts `.bin` via `colmap model_converter`);
-- map names to `t_mid_s` through `load_frames` (`frame_metrics.py:71`) and report each
+- map names to `t_mid_s` through `load_frames` (`pipeline/frame_metrics.py:80`) and report each
   fragment's time span, plus the union coverage across all fragments.
 
-Surface it as `frame_metrics.py fragments --scene <dir> --frames <dir>` and reuse it from
+Surface it as `pipeline.frame_metrics fragments --scene <dir> --frames <dir>` and reuse it from
 `capture_probe.py`. Extend `cmd_colmap` to print the fragment count alongside its existing
 output so the single-model assumption stops being silent.
 
@@ -274,7 +274,7 @@ acquiring. **Confirm on hardware before building the UI around it** — check
 `nm[node].is_writable` while streaming. If they are locked, the fallback is a
 stop/reconfigure/start cycle, which must be refused outright while raw recording. Record
 the finding in the `controls.py` docstring using the ledger idiom of the root scripts
-(`convert_to_inceventgs.py:1-32`).
+(`pipeline/convert_to_inceventgs.py:1-32`).
 
 Second unknown: each node's legal range. Seed the spinboxes from `node.min`/`node.max` read
 at connect time, falling back to the constants if the read fails — the existing code
@@ -322,7 +322,7 @@ Strictly sequential — each step is verifiable before the next depends on it.
 reproduce `tracked_mc25k` before it is trusted on a new take:
 
 ```bash
-~/envs/phase1/bin/python capture_probe.py \
+~/envs/phase1/bin/python -m pipeline.capture_probe \
     --input recordings/20260602_102004_demo_scene_orbit_1 \
     --start-s 12 --duration-s 6 --out work/probe/regress
 ```
@@ -332,10 +332,10 @@ length ~3.53, ev/lit-px ≈ 1.07 at the 25 k window and ≈ 2.15 at the 2 s refe
 are measured values, not estimates — a material difference means the window is not pinned
 as intended.
 
-**§4 — fragment analysis.** `frame_metrics.py fragments --scene
+**§4 — fragment analysis.** `pipeline.frame_metrics fragments --scene
 work/phase1b/tracked_mc25k --frames work/phase1b/tracked_mc25k` must enumerate all twelve
 and match the per-fragment registered counts (2, 15, 22, 24, 17, 13, 37, 11, 27, 10, 10,
-17). Cross-check the new lifetime field against the ~0.4 s `track_frames.py:17` records.
+17). Cross-check the new lifetime field against the ~0.4 s `pipeline/track_frames.py:17` records.
 
 **§3 — live tier, on hardware.** Static scene: speed near zero, ev/lit-px at its floor.
 On an orbit: speed in the 500–2200 px/s band `Phase1b-Results.md` §5 measured. Critically,
@@ -367,6 +367,6 @@ change predicts — and that fragment count falls as it rises.
   the intent, the gate value needs revisiting rather than the code.
 - **Fragmentation may not be a density problem at all.** Twelve models each with healthy
   track length is the signature of tracks that die and restart, not of tracks that are
-  too short. `track_frames.py:17` records a ~0.4 s track lifetime; the largest fragment
+  too short. `pipeline/track_frames.py:17` records a ~0.4 s track lifetime; the largest fragment
   spans 1.04 s. Worth checking whether wider LK windows, overlapping accumulation stride,
   or `--max-gap` tuning merges fragments *before* concluding the sensor is the limit.

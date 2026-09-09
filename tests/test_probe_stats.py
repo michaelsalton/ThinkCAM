@@ -15,7 +15,7 @@ numbers Phase1b-Results.md and the plan quote, so a drift here means the live
 panel and the wiki have stopped describing the same quantity. Do not "fix" a
 failure by moving a tolerance.
 
-    PYTHONPATH=. ~/envs/phase1/bin/python test_probe_stats.py
+    ~/envs/phase1/bin/python -m tests.test_probe_stats     # from the repo root
 """
 
 import sys

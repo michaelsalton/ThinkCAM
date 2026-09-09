@@ -1,15 +1,18 @@
 #!/bin/bash
 # Run any Arena SDK Python example (or arbitrary python script) with the
 # ArenaSDK env wired up. Usage:
-#   ./run_example.sh ArenaSDK/ArenaSDK_Linux_x64/Examples/Python/py_evs_acquisition.py
-#   ./run_example.sh Arena_examples/Python/py_evs_xytp_frame_heatmap.py
+#   ./scripts/run_example.sh ArenaSDK/ArenaSDK_Linux_x64/Examples/Python/py_evs_acquisition.py
+#   ./scripts/run_example.sh Arena_examples/Python/py_evs_xytp_frame_heatmap.py
+# Script paths are resolved against your cwd (run it from the repo root), or
+# against the SDK's own Examples/Python if you pass a bare filename.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SDK=${ARENA_SDK:-$SCRIPT_DIR/ArenaSDK/ArenaSDK_Linux_x64}
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+SDK=${ARENA_SDK:-$REPO_ROOT/ArenaSDK/ArenaSDK_Linux_x64}
 
 if [ ! -d "$SDK" ]; then
     echo "ERROR: ArenaSDK not found at $SDK"
-    echo "Set ARENA_SDK=/path/to/ArenaSDK_Linux_x64 or place it at ./ArenaSDK/ArenaSDK_Linux_x64"
+    echo "Set ARENA_SDK=/path/to/ArenaSDK_Linux_x64 or place it at $REPO_ROOT/ArenaSDK/ArenaSDK_Linux_x64"
     exit 1
 fi
 

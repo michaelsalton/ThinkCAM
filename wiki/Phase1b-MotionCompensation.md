@@ -1,6 +1,6 @@
 # ThinkCam Phase 1b — Motion-Compensated Event Frames
 
-> **Built and measured.** Tools: `accumulate_frames.py`, `frame_metrics.py`.
+> **Built and measured.** Tools: `pipeline/accumulate_frames.py`, `pipeline/frame_metrics.py`.
 > Results, including which gates passed and what the failures diagnose:
 > [`Phase1b-Results.md`](Phase1b-Results.md).
 
@@ -89,10 +89,10 @@ directly. This is already known to show real scene structure: at 20,000 events (
 the raw accumulation shows a chair, a doorway and wall edges clearly, where every E2VID
 frame at every setting showed none.
 
-New `accumulate_frames.py` at the repo root, beside `export_e2vid_input.py`:
+New `accumulate_frames.py` in `pipeline/`, beside `export_e2vid_input.py`:
 
-- Reuse `event_chunks()` from `export_e2vid_input.py:85` for the streaming read, and
-  `_resolve_input` from `convert_to_inceventgs.py:47-54` so the CLI matches the others.
+- Reuse `event_chunks()` from `pipeline/export_e2vid_input.py:85` for the streaming read, and
+  `_resolve_input` from `pipeline/convert_to_inceventgs.py:47-54` so the CLI matches the others.
 - Window by **event count** (`--events-per-frame`), sliding with `--stride` for overlap.
 - Accumulate, normalise, write 3-channel PNG (Phase1 §3.3 — a 1-channel ground truth
   broadcasts silently against a 3-channel render).

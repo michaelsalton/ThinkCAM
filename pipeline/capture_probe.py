@@ -7,14 +7,15 @@ changes, then re-run the gates -- and nothing in the repo ran the gates as one
 command. Every number below existed only as a hand-assembled sequence of tool
 invocations, or (events per lit pixel) not at all.
 
-    python capture_probe.py --input recordings/<session> [--out work/probe/<take>]
+    python -m pipeline.capture_probe --input recordings/<session> \
+        [--out work/probe/<take>]
 
 WHAT IS PINNED, AND WHY. The window is 25,000 events with motion compensation
 ON, from thinkcam/constants.py. Those are not defaults chosen here; they are
 work/phase1b/tracked_mc25k, the best configuration on record. This is a
 correction to Phase1b-Results.md, which used 200 k and concluded compensation
 was not worth 1.7x the cost -- true for the SIFT path it measured, false for the
-LK path in track_frames.py that replaced it. Two probes are only comparable if
+LK path in track_frames that replaced it. Two probes are only comparable if
 they share this configuration, so --events-per-frame exists but moves the run
 off the reference.
 
@@ -81,10 +82,11 @@ try:
 except ImportError:
     sys.exit("h5py is required: pip install h5py")
 
-import accumulate_frames as acc
-import frame_metrics as fm
-from convert_to_inceventgs import _resolve_input
-from export_e2vid_input import read_meta, resolve_geometry
+from pipeline import accumulate_frames as acc
+from pipeline import child_env
+from pipeline import frame_metrics as fm
+from pipeline.convert_to_inceventgs import _resolve_input
+from pipeline.export_e2vid_input import read_meta, resolve_geometry
 from thinkcam.constants import (
     PROBE_EV_PER_LIT_TARGET,
     PROBE_EVENTS_PER_FRAME,
@@ -96,7 +98,6 @@ from thinkcam.constants import (
     PROBE_WORK_DIR,
 )
 
-HERE = os.path.dirname(os.path.abspath(__file__))
 PROBE_VERSION = 1
 
 
@@ -241,7 +242,8 @@ def run_step(cmd, log_path, label):
           f"-> {log_path}", flush=True)
     with open(log_path, "w") as log:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, bufsize=1)
+                                stderr=subprocess.STDOUT, text=True, bufsize=1,
+                                env=child_env())
         for line in proc.stdout:
             log.write(line)
             sys.stdout.write("    " + line)
@@ -253,7 +255,7 @@ def run_step(cmd, log_path, label):
 
 def step_frames(args, out):
     """accumulate_frames -> <out>/input/*.png, manifest lifted to <out>/."""
-    cmd = [sys.executable, os.path.join(HERE, "accumulate_frames.py"),
+    cmd = [sys.executable, "-m", "pipeline.accumulate_frames",
            "--input", args.input, "--out", os.path.join(out, "input"),
            "--events-per-frame", str(args.events_per_frame),
            "--stride", str(args.stride)]
@@ -282,7 +284,7 @@ def step_frames(args, out):
 
 def step_tracks(args, out):
     """track_frames -> COLMAP database, mapper, tracks.json."""
-    cmd = [sys.executable, os.path.join(HERE, "track_frames.py"),
+    cmd = [sys.executable, "-m", "pipeline.track_frames",
            "--frames", out, "--out", out,
            "--max-gap", str(args.max_gap)]
     if not args.skip_colmap:

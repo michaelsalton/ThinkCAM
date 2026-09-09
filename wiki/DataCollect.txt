@@ -243,7 +243,7 @@ and note the verified convention in a comment.
 ### 4.3 Implementation
 
 ```
-convert_to_inceventgs.py
+python -m pipeline.convert_to_inceventgs
   --input   recordings/<session>/events.h5   (or .aedat4)
   --out     datasets/<scene_name>
   --threshold 0.1
@@ -373,10 +373,10 @@ lighting, and whether intrinsics were calibrated.
 
 ```
 # capture (GUI): toggle "Record RAW" (or press R); takes land in recordings/<ts>_<label>/
-./run_evs.sh
+./scripts/run_evs.sh
 
 # convert one take for IncEventGS (pose-free)
-python convert_to_inceventgs.py \
+python -m pipeline.convert_to_inceventgs \
     --input recordings/<session>/events.h5 \
     --out datasets/<scene_name> --threshold 0.1
 

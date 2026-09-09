@@ -32,13 +32,13 @@ lists them:
                    this before building anything on the 2-DOF model.
 
 Usage:
-    python frame_metrics.py all        --frames <dir> [--input <recording>]
-    python frame_metrics.py determinism --input <recording> [-n 50000]
-    python frame_metrics.py flow       --frames <dir>
-    python frame_metrics.py sharpness  --frames <dir> [--frames-b <dir>]
-    python frame_metrics.py mc-probe   --input <recording> [-n 50000]
-    python frame_metrics.py colmap     --scene <dir>
-    python frame_metrics.py fragments  --scene <dir> [--frames <dir>]
+    python -m pipeline.frame_metrics all         --frames <dir> [--input <rec>]
+    python -m pipeline.frame_metrics determinism --input <recording> [-n 50000]
+    python -m pipeline.frame_metrics flow        --frames <dir>
+    python -m pipeline.frame_metrics sharpness   --frames <dir> [--frames-b <dir>]
+    python -m pipeline.frame_metrics mc-probe    --input <recording> [-n 50000]
+    python -m pipeline.frame_metrics colmap      --scene <dir>
+    python -m pipeline.frame_metrics fragments   --scene <dir> [--frames <dir>]
 """
 
 import argparse
@@ -60,10 +60,11 @@ try:
 except ImportError:
     sys.exit("opencv-python is required: pip install opencv-python")
 
-import accumulate_frames as acc
-import view_sparse
-from convert_to_inceventgs import _resolve_input
-from export_e2vid_input import read_meta, resolve_geometry
+from pipeline import accumulate_frames as acc
+from pipeline import child_env
+from pipeline import view_sparse
+from pipeline.convert_to_inceventgs import _resolve_input
+from pipeline.export_e2vid_input import read_meta, resolve_geometry
 
 PASS, FAIL, INFO = "PASS", "FAIL", "  --"
 
@@ -125,8 +126,7 @@ def cmd_determinism(args):
     tmp = args.workdir or tempfile.mkdtemp(prefix="det_")
     a_dir, b_dir = os.path.join(tmp, "hist"), os.path.join(tmp, "fresh")
 
-    common = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                           "accumulate_frames.py"),
+    common = [sys.executable, "-m", "pipeline.accumulate_frames",
               "--input", args.input,
               "--events-per-frame", str(args.events_per_frame),
               "--norm-hi", f"{args.norm_hi:.6f}"]
@@ -136,7 +136,7 @@ def cmd_determinism(args):
             common += ["--mc-tiles", args.mc_tiles]
 
     def run(cmd):
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        r = subprocess.run(cmd, capture_output=True, text=True, env=child_env())
         if r.returncode:
             sys.exit(f"accumulate_frames failed:\n{r.stdout}\n{r.stderr}")
 
@@ -536,7 +536,7 @@ def analyze_fragments(scene, frames_dir=None):
 def report_fragments(res, table=True, gates=True):
     """Print the per-fragment table and/or the gates it implies.
 
-    capture_probe.py wants the table but owns the gate rows itself (it prints
+    capture_probe wants the table but owns the gate rows itself (it prints
     and serialises them from one list), so it passes gates=False rather than
     having every gate appear twice under two slightly different wordings.
     Returns True when all gates pass, whether or not they were printed.
@@ -640,7 +640,7 @@ def cmd_colmap(args):
     print(_fmt(INFO if n_models == 1 else FAIL, "reconstructions",
                f"{n_models} under {args.scene}/sparse"
                + ("" if n_models == 1 else
-                  "  -- fragmented; run `frame_metrics.py fragments`")))
+                  "  -- fragmented; run `frame_metrics fragments`")))
     ok_reg = n_input and rate >= 0.9
     print(_fmt(PASS if ok_reg else FAIL, "registered >= 90%",
                f"{registered}/{n_input} = {100 * rate:.0f}%  (largest model only)"))

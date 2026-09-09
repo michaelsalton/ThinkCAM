@@ -21,7 +21,7 @@ The schema below was VERIFIED by reading rpg_e2vid's own readers, not the README
 Consequences, baked in as the defaults here:
 
   * Column order is [t, x, y, p] -- timestamp FIRST. This is the opposite of the
-    [x, y, t, p] that convert_to_inceventgs.py writes; do not copy that layout.
+    [x, y, t, p] that convert_to_inceventgs writes; do not copy that layout.
   * Timestamps are SECONDS, not microseconds. ThinkCam records microseconds
     (docs/ImplementationPlan.md §2), so we divide by 1e6 and re-zero to the first
     event. %.6f keeps full microsecond resolution.
@@ -49,7 +49,7 @@ try:
 except ImportError:
     sys.exit("h5py is required: pip install h5py")
 
-from convert_to_inceventgs import _resolve_input
+from pipeline.convert_to_inceventgs import _resolve_input
 
 # Chunk length for the streaming read. Matches RAW_HDF5_CHUNK in
 # thinkcam/constants.py so we read whole HDF5 chunks and never straddle a

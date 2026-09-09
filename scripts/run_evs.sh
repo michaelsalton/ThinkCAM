@@ -3,7 +3,8 @@
 # Sets LD_LIBRARY_PATH to the extracted ArenaSDK libraries and activates the venv.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SDK=${ARENA_SDK:-$SCRIPT_DIR/ArenaSDK/ArenaSDK_Linux_x64}
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+SDK=${ARENA_SDK:-$REPO_ROOT/ArenaSDK/ArenaSDK_Linux_x64}
 
 if [ ! -d "$SDK" ]; then
     echo "ERROR: ArenaSDK not found at $SDK"
@@ -24,4 +25,7 @@ export GENICAM_GENTL64_PATH=$SDK/lib64${GENICAM_GENTL64_PATH:+:$GENICAM_GENTL64_
 
 source ~/envs/default/bin/activate
 
-python3 -m thinkcam.main "$@"
+# thinkcam and pipeline are packages under the repo root, not this directory.
+cd "$REPO_ROOT"
+
+exec python3 -m thinkcam.main "$@"

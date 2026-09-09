@@ -39,7 +39,7 @@ from collections import deque
 import numpy as np
 from PySide6.QtCore import QMutex, QMutexLocker, QThread, Signal
 
-import accumulate_frames as acc
+from pipeline import accumulate_frames as acc
 from thinkcam.constants import (
     PROBE_EV_PER_LIT_TARGET,
     PROBE_EVENTS_PER_FRAME,

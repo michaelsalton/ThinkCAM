@@ -3,12 +3,12 @@
 What [`Phase1b-MotionCompensation.md`](Phase1b-MotionCompensation.md) specified, built and
 run against `20260602_102004_demo_scene_orbit_1` (51.2 M events, 64.1 s, 798 Kev/s).
 
-Two tools, both at the repo root beside the existing converters:
+Two tools, both in `pipeline/` beside the existing converters:
 
 | Tool | Does |
 |---|---|
-| `accumulate_frames.py` | events → frames. Step 1 (plain accumulation) and Step 2 (`--motion-comp`, contrast maximization, optional `--mc-tiles`). |
-| `frame_metrics.py` | every Phase1b §5 gate: `determinism`, `sharpness`, `flow`, `colmap`, plus `mc-probe` for the Phase1b §4.1 `VERIFY-FIRST`. `all` runs them cheapest-first. |
+| `pipeline/accumulate_frames.py` | events → frames. Step 1 (plain accumulation) and Step 2 (`--motion-comp`, contrast maximization, optional `--mc-tiles`). |
+| `pipeline/frame_metrics.py` | every Phase1b §5 gate: `determinism`, `sharpness`, `flow`, `colmap`, plus `mc-probe` for the Phase1b §4.1 `VERIFY-FIRST`. `all` runs them cheapest-first. |
 
 **Headline:** the frames are deterministic — the gate E2VID failed — and the motion model
 was verified rather than assumed. But the multi-view gate fails, and it fails for a reason
@@ -86,7 +86,7 @@ is 1050 px/s in the same direction the contrast search reported.
 
 ## 5. Phase1b §4.1 `VERIFY-FIRST` — one global motion is enough
 
-`frame_metrics.py mc-probe`, 100 k-event windows, six samples across the take:
+`pipeline.frame_metrics mc-probe`, 100 k-event windows, six samples across the take:
 
 ```
         t_mid_s   v_global(px/s)      gain     +3x3 tiles   tile v spread
@@ -201,8 +201,8 @@ here are from the 64 s take.
    the only lever that raises events per edge crossing, which is the quantity every gate
    above is starved of. Target: enough that a window has ≥5 events per active pixel.
 2. **Re-run the gates on the new take, unchanged.** Both tools are take-agnostic:
-   `accumulate_frames.py --input <rec> --out <scene>/input` then
-   `frame_metrics.py all --frames <scene> --input <rec> --scene <scene>`. The cheapest
+   `pipeline.accumulate_frames --input <rec> --out <scene>/input` then
+   `pipeline.frame_metrics all --frames <scene> --input <rec> --scene <scene>`. The cheapest
    disqualifier runs first, so a bad take is rejected in seconds rather than after COLMAP.
 3. **Keep the determinism gate in front of any future front end.** It cost minutes, it
    caught this implementation's own warm-start defect, and it is the test that would have
@@ -219,17 +219,17 @@ V=~/envs/phase1/bin/python          # numpy, h5py, opencv, torch; colmap on PATH
 REC=recordings/20260602_102004_demo_scene_orbit_1
 
 # Step 1 — plain accumulation
-$V accumulate_frames.py --input $REC --out work/phase1b/sw_200000/input \
+$V -m pipeline.accumulate_frames --input $REC --out work/phase1b/sw_200000/input \
     --events-per-frame 200000 --stride 64000 --start-s 10 --duration-s 20
 
 # Step 2 — contrast maximization (cold search; add --mc-warm-start only for previews)
-$V accumulate_frames.py --input $REC --out work/phase1b/mccold_200000/input \
+$V -m pipeline.accumulate_frames --input $REC --out work/phase1b/mccold_200000/input \
     --events-per-frame 200000 --stride 64000 --start-s 10 --duration-s 20 --motion-comp
 
 # Phase1b §5 gates, cheapest first
-$V frame_metrics.py all --frames work/phase1b/mccold_200000 --input $REC \
+$V -m pipeline.frame_metrics all --frames work/phase1b/mccold_200000 --input $REC \
     --gaps 0.16 0.32 0.64
-$V frame_metrics.py mc-probe --input $REC -n 100000 --samples 6 --tiles 3x3
+$V -m pipeline.frame_metrics mc-probe --input $REC -n 100000 --samples 6 --tiles 3x3
 
 # The COLMAP gate. Same feature settings as the Phase 1 attempts in
 # work/phase1/*/run_colmap.sh, so the numbers compare with the E2VID run.
@@ -247,7 +247,7 @@ mkdir -p $S/sparse && colmap mapper --database_path $S/db.db \
     --Mapper.init_min_tri_angle 2 --Mapper.init_min_num_inliers 30 \
     --Mapper.abs_pose_min_num_inliers 15 --Mapper.min_num_matches 12 \
     --Mapper.filter_min_tri_angle 0.5 --Mapper.init_max_error 6
-$V frame_metrics.py colmap --scene $S
+$V -m pipeline.frame_metrics colmap --scene $S
 ```
 
 Runtimes on this machine: accumulation 2.5 s for 238 frames, motion-compensated 81 s

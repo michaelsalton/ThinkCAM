@@ -13,11 +13,11 @@ Each take is written to `recordings/<timestamp>_<label>/{events.h5, metadata.jso
 
 ```bash
 cd /home/ubuntu/Documents/Development/ThinkCam
-./run_evs.sh
+./scripts/run_evs.sh
 ```
 
 This wires up the ArenaSDK libraries + GenTL producer, activates the `~/envs/default`
-venv, and starts the GUI (`run_evs.sh` → `thinkcam.main`). You should see the live
+venv, and starts the GUI (`scripts/run_evs.sh` → `thinkcam.main`). You should see the live
 event preview once the camera at `169.254.80.199` connects.
 
 ## 2. Set the lens once, then don't touch it
@@ -94,7 +94,7 @@ Want activity spanning essentially the whole take at a healthy rate.
 
 ## Notes for later processing (not needed at capture time)
 
-- Convert a take to IncEventGS layout with `convert_to_inceventgs.py`.
+- Convert a take to IncEventGS layout with `python -m pipeline.convert_to_inceventgs`.
 - Intrinsics are solved offline from the calibration take and written into the
   IncEventGS run config YAML (`cam.fx/fy/cx/cy`), not the dataset dir.
 - See [ImplementationPlan.md](ImplementationPlan.md) and [DataCollect.txt](DataCollect.txt)

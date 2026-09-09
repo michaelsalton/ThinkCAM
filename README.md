@@ -18,7 +18,7 @@ Real-time visualization and capture tool for the LUCID TRT009S-E event camera (E
 Shoot, probe, adjust, shoot again — `plans/01_CaptureDashboard.md`.
 
 Record a take with **R**, then press **D** (or *Run Probe*) to score it:
-`capture_probe.py` accumulates motion-compensated frames, LK-tracks them into
+`pipeline/capture_probe.py` accumulates motion-compensated frames, LK-tracks them into
 COLMAP correspondences, runs the mapper and prints a gate table, writing
 `work/probe/<take>/probe.json` for the panel to render. It runs out of process
 on a separate analysis interpreter (`THINKCAM_PROBE_PYTHON`, default
@@ -29,10 +29,15 @@ the `colmap` binary rather than `arena_api` + PySide6. A 200-frame probe is
 The same thing from a terminal, with no camera attached:
 
 ```bash
-~/envs/phase1/bin/python capture_probe.py --input recordings/<take>
-~/envs/phase1/bin/python frame_metrics.py fragments --scene work/probe/<take>
-PYTHONPATH=. ~/envs/phase1/bin/python test_probe_stats.py
+~/envs/phase1/bin/python -m pipeline.capture_probe --input recordings/<take>
+~/envs/phase1/bin/python -m pipeline.frame_metrics fragments --scene work/probe/<take>
+~/envs/phase1/bin/python -m tests.test_probe_stats
 ```
+
+The offline tools are modules, not loose scripts: run them as
+`python -m pipeline.<tool>` **from the repo root**, so that the imports between
+them and the GUI's import of `accumulate_frames` all resolve by package name.
+Each takes `--help`.
 
 The headline gate is **fragments**: the LK path clears the mean-track-length
 bar and the mapper still returns a dozen disconnected models, so what the table
@@ -53,7 +58,7 @@ pip install arena_api-*.whl
 
 ## Setup
 
-1. **ArenaSDK**: Download and extract ArenaSDK for Linux x64. Set the `ARENA_SDK` environment variable to the extracted `ArenaSDK_Linux_x64` directory, or edit the default in `run_evs.sh`.
+1. **ArenaSDK**: Download and extract ArenaSDK for Linux x64. Set the `ARENA_SDK` environment variable to the extracted `ArenaSDK_Linux_x64` directory, or edit the default in `scripts/run_evs.sh`.
 
 2. **arena_api config**: Point the Python wrapper at your SDK's native libraries by editing `arena_api_config.py` in your site-packages:
 
@@ -79,7 +84,7 @@ pip install arena_api-*.whl
 ## Usage
 
 ```bash
-./run_evs.sh
+./scripts/run_evs.sh
 ```
 
 ### Keyboard shortcuts
@@ -96,28 +101,43 @@ pip install arena_api-*.whl
 
 ```
 ThinkCam/
-  thinkcam/
-    main.py            # Application entry point
-    main_window.py     # Main window layout and signal wiring
-    camera_worker.py   # QThread for camera acquisition + bias mailbox
-    visualizer.py      # Event batch -> BGR
-    controls.py        # Save / Record / Biases sidebar
-    dashboard.py       # Live readouts + last probe's gate table
-    probe_worker.py    # QThread for the live statistics (ev/lit-px, speed)
-    status_bar.py      # Live statistics status bar
-    recorder.py        # MP4 video recording
-    raw_recorder.py    # Lossless HDF5 event recording
-    derivative_plot.py # Rolling polarity plots
-    constants.py       # Camera and probe defaults
-  capture_probe.py     # Score a finished take: frames -> tracks -> COLMAP -> gates
-  accumulate_frames.py # Events -> deterministic intensity frames
-  track_frames.py      # LK tracks -> COLMAP correspondences
-  frame_metrics.py     # Acceptance gates, incl. fragment analysis
-  view_sparse.py       # Render a COLMAP sparse model to a PNG
-  test_probe_stats.py  # Offline check of the live probe tier
-  run_evs.sh           # Launcher script
+  thinkcam/                  # the live GUI — runs on the camera venv
+    main.py                  # Application entry point
+    main_window.py           # Main window layout and signal wiring
+    camera_worker.py         # QThread for camera acquisition + bias mailbox
+    visualizer.py            # Event batch -> BGR
+    controls.py              # Save / Record / Biases sidebar
+    dashboard.py             # Live readouts + last probe's gate table
+    probe_worker.py          # QThread for the live statistics (ev/lit-px, speed)
+    status_bar.py            # Live statistics status bar
+    recorder.py              # MP4 video recording
+    raw_recorder.py          # Lossless HDF5 event recording
+    derivative_plot.py       # Rolling polarity plots
+    constants.py             # Camera and probe defaults
+  pipeline/                  # offline tools — `python -m pipeline.<tool>`,
+                             # on the analysis venv (numpy/h5py/cv2 + colmap)
+    capture_probe.py         # Score a take: frames -> tracks -> COLMAP -> gates
+    accumulate_frames.py     # Events -> deterministic intensity frames
+    track_frames.py          # LK tracks -> COLMAP correspondences
+    frame_metrics.py         # Acceptance gates, incl. fragment analysis
+    view_sparse.py           # Render a COLMAP sparse model to a PNG
+    convert_to_inceventgs.py # Events -> IncEventGS dataset layout
+    export_e2vid_input.py    # Events -> E2VID event-file format
+  tests/
+    test_probe_stats.py      # Offline check of the live probe tier
+  scripts/
+    run_evs.sh               # GUI launcher (ArenaSDK env + venv)
+    run_example.sh           # Run an ArenaSDK Python example
+  recordings/                # RAW takes: events.h5 + metadata.json
+  work/                      # probe and phase output (gitignored, regenerable)
+  plans/, wiki/              # design plans and measured results
   requirements.txt
 ```
+
+The two directories run on **different interpreters** and only meet at two
+points: `thinkcam.probe_worker` imports `pipeline.accumulate_frames` for the
+live readout, and `pipeline.capture_probe` reads the pinned probe settings from
+`thinkcam.constants`.
 
 ## License
 

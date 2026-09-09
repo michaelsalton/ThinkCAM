@@ -171,7 +171,7 @@ blocker for the capture session.
 
 ### Phase 3 — IncEventGS converter (Deliverable 3)
 
-Standalone `convert_to_inceventgs.py` (spec §4). Reads `events.h5`, writes
+Standalone `pipeline/convert_to_inceventgs.py` (spec §4). Reads `events.h5`, writes
 `<scene>/event_threshold_<C>/gray_events_data.npy`. **VERIFY-FIRST against the real
 `IncEventGS/datasets/` loader** (clone or read it) before locking: column order
 (`[t,x,y,p]` vs `[x,y,t,p]`), `t` unit (s vs µs), polarity (`{0,1}` vs `{-1,1}`), dtype.

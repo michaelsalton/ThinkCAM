@@ -48,7 +48,7 @@ against the live source:
 ```
 recordings/<session>/events.h5          # EXISTS — lossless (x,y,t,p), see ImplementationPlan §3
   │
-  │  export_e2vid_input.py              # BUILD — streaming, windowed
+  │  pipeline/export_e2vid_input.py     # BUILD — streaming, windowed
   ▼
 <work>/events.txt (or .zip)             # E2VID input format  <-- VERIFY-FIRST, see §3
   │
@@ -69,7 +69,7 @@ Phase 1 deliberately sidesteps two things that block the other routes:
 
 - **IncEventGS's loader assert.** `ReplicaEventDataset`/`SimuEventDataset` require
   `len(poses_ts) == len(images) == len(traj)`, which a pure event-only capture cannot
-  satisfy — documented at `convert_to_inceventgs.py:264-267`. Going through COLMAP
+  satisfy — documented at `pipeline/convert_to_inceventgs.py:264-267`. Going through COLMAP
   produces real poses and real frames, so the assert is moot.
 - **Offline calibration.** See §0.
 
@@ -107,7 +107,7 @@ PyTorch, and on CPU if needed, so it is the easier of the two to modernise.
 **Missing binaries.** `colmap` is not on PATH (required), and neither is `magick`
 (only needed for `convert.py --resize`). Neither is `conda` — use `venv` + `pip`.
 
-> Note on interpreters: `run_evs.sh:25` and the sanity-check snippet at
+> Note on interpreters: `scripts/run_evs.sh:26` and the sanity-check snippet at
 > [`CaptureGuide.md`](CaptureGuide.md) §6 both source `~/envs/default`, which **does not
 > exist on this machine**. Every command in this document assumes an explicit venv path
 > instead. State the interpreter when you run anything.
@@ -146,7 +146,7 @@ in `l1_loss` — no error, just a quietly wrong loss. Save E2VID output as **3-c
 PNGs. Verify the tensor shape once, at the first camera load, rather than trusting this.
 
 Record the resolutions in the exporter docstring using the ledger idiom already
-established at `convert_to_inceventgs.py:8-15`.
+established at `pipeline/convert_to_inceventgs.py:8-15`.
 
 ---
 
@@ -154,7 +154,7 @@ established at `convert_to_inceventgs.py:8-15`.
 
 **Exists and is directly reusable:**
 
-- `_resolve_input(path)` — `convert_to_inceventgs.py:47-54`. Accepts either an
+- `_resolve_input(path)` — `pipeline/convert_to_inceventgs.py:47-54`. Accepts either an
   `events.h5` or a session dir. Reuse verbatim so every converter's CLI feels identical.
 - `remap_polarity(p, mode)` — `:72-81`. `mode="pm1"` gives signed `{-1,+1}` if E2VID
   wants it; `"01"` passes through.
@@ -168,7 +168,7 @@ established at `convert_to_inceventgs.py:8-15`.
 
 **Must be built or added:**
 
-- `export_e2vid_input.py` — new, repo root, beside `convert_to_inceventgs.py`.
+- `export_e2vid_input.py` — new, in `pipeline/`, beside `convert_to_inceventgs.py`.
 - `external/gaussian-splatting` — upstream submodule, plus its two CUDA extensions.
 - `external/rpg_e2vid` — external clone plus pretrained weights.
 - `colmap` binary, and a modern venv per §2.
@@ -206,7 +206,7 @@ Reads a recording, emits E2VID's input format (§3.1). Requirements:
   this transparently — just never hardcode it.
 - Re-zero `t` to the first event and convert µs → whatever §3.1 confirms.
 - Reuse `_resolve_input` and `remap_polarity`.
-- Print every chosen convention at runtime, as `convert_to_inceventgs.py:252-267` does.
+- Print every chosen convention at runtime, as `pipeline/convert_to_inceventgs.py:252-267` does.
 
 ### Step 3 — E2VID reconstruction
 
@@ -288,7 +288,7 @@ verification (`timestamp_unit: "raw_sensor_float_unit_TBD"`), so its `t` column 
 
 **One note for whoever converts a long take to IncEventGS later:** the default
 `--dtype float32 --t-unit us` holds integer precision only to 2²⁴ ≈ 16.7 s. Five of nine
-takes exceed that, including `demo_scene_orbit_1` at 64.1 s. `convert_to_inceventgs.py:213-216`
+takes exceed that, including `demo_scene_orbit_1` at 64.1 s. `pipeline/convert_to_inceventgs.py:213-216`
 only prints a warning. Pass `--t-unit s` or `--dtype float64`.
 
 ---

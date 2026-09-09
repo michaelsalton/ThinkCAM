@@ -266,7 +266,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _run_probe(self):
-        """Score the last finished take. Runs capture_probe.py under QProcess.
+        """Score the last finished take. Runs pipeline.capture_probe under QProcess.
 
         Out of process and on a different interpreter: the analysis tools need
         numpy/h5py/cv2 and the colmap binary, which are not in the GUI venv, and
@@ -298,7 +298,7 @@ class MainWindow(QMainWindow):
         self._dashboard.set_probe_running(True)
         self._dashboard.set_progress("starting…")
         proc.start(PROBE_PYTHON,
-                   [os.path.join(REPO_ROOT, "capture_probe.py"),
+                   ["-m", "pipeline.capture_probe",
                     "--input", take, "--out", out])
         self._status_bar.showMessage(f"Probing {os.path.basename(take)}…", 4000)
 

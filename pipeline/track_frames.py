@@ -45,7 +45,7 @@ try:
 except ImportError:
     sys.exit("opencv-python is required: pip install opencv-python")
 
-from frame_metrics import load_frames
+from pipeline.frame_metrics import load_frames
 
 
 def prepare(path, blur):
@@ -269,7 +269,8 @@ def main():
             sys.exit(f"  FAILED (see {log}):\n{r.stdout[-1500:]}{r.stderr[-1500:]}")
         print(f"    ok -> {log}")
 
-    print(f"\n  Now: python frame_metrics.py colmap --scene {args.out}\n")
+    print(f"\n  Now: python -m pipeline.frame_metrics colmap "
+          f"--scene {args.out}\n")
 
 
 if __name__ == "__main__":

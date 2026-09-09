@@ -17,7 +17,8 @@ The two properties that fix this, both structural rather than tuned:
 
   * DETERMINISTIC. A frame depends only on the events inside its own window and
     on constants fixed once per take. Same viewpoint -> same appearance -> SIFT
-    features persist across views. Verified by frame_metrics.py determinism.
+    features persist across views. Verified by the frame_metrics determinism
+    gate.
   * SCALE-FREE. No training distribution, so 1280x720 is not out-of-regime and
     no --downsample is needed.
 
@@ -71,8 +72,13 @@ try:
 except ImportError:
     sys.exit("h5py is required: pip install h5py")
 
-from convert_to_inceventgs import _resolve_input
-from export_e2vid_input import READ_CHUNK, event_chunks, read_meta, resolve_geometry
+from pipeline.convert_to_inceventgs import _resolve_input
+from pipeline.export_e2vid_input import (
+    READ_CHUNK,
+    event_chunks,
+    read_meta,
+    resolve_geometry,
+)
 
 # Percentile of the NON-ZERO count values used as the white point. Zeros are
 # excluded because at 0.87 ev/px/s a short window touches ~2% of the sensor --
@@ -440,7 +446,7 @@ def build_parser():
     ap.add_argument("--events-per-frame", type=int, default=50_000, metavar="N",
                     help="window length in events (default 50,000). The central "
                          "trade-off: short is noisy, long is motion-blurred. "
-                         "Sweep 20k/50k/100k/200k and pick on frame_metrics.py "
+                         "Sweep 20k/50k/100k/200k and pick on frame_metrics "
                          "numbers, not by eye.")
     ap.add_argument("--stride", type=int, default=None, metavar="N",
                     help="events between window starts (default: no overlap)")
@@ -453,7 +459,7 @@ def build_parser():
     ap.add_argument("--start-event", type=int, default=None, metavar="I",
                     help="pin the first window to this absolute event index. "
                          "Only needed to make two runs share a window grid for "
-                         "the §5 determinism gate; frame_metrics.py sets it.")
+                         "the §5 determinism gate; frame_metrics sets it.")
     ap.add_argument("--norm-hi", type=float, default=None,
                     help="white point in events/pixel. Default: measured over "
                          "the take. Pass the printed value for a bit-exact rerun.")
@@ -493,7 +499,7 @@ def build_parser():
                     help="piecewise-constant motion on an RxC tile grid instead "
                          "of one global v. Phase1b §4.1: an orbit has "
                          "depth-dependent parallax, which one v cannot fit. "
-                         "Confirm the need with frame_metrics.py mc-probe.")
+                         "Confirm the need with `frame_metrics mc-probe`.")
     return ap
 
 
@@ -606,7 +612,7 @@ def main():
           f"global norm_hi={norm_hi:.3f}")
     print(f"  Reproduce bit-exactly with:  --norm-hi {norm_hi:.6f}")
     print(f"  elapsed {time.time() - t_started:.1f} s\n")
-    print("  Next: python frame_metrics.py all --frames "
+    print("  Next: python -m pipeline.frame_metrics all --frames "
           f"{args.out}  (Phase1b §5 gates)\n")
 
 

@@ -1,0 +1,34 @@
+{
+  "sensor": "Sony IMX636 (LUCID TRT009S-E)",
+  "resolution": [
+    1280,
+    720
+  ],
+  "timestamp_unit": "microseconds",
+  "polarity_encoding": "0_neg_1_pos",
+  "recording_start_utc": "2026-09-10T14:31:49Z",
+  "duration_s": 57.073,
+  "event_count": 17746990,
+  "dropped_events": 0,
+  "lossless": true,
+  "biases": {
+    "threshold_positive": 10,
+    "threshold_negative": 10,
+    "refractory_period": 10,
+    "burst_filter": true
+  },
+  "noise_filter": {
+    "background_activity_filter": null,
+    "duration_us": null
+  },
+  "intrinsics": {
+    "fx": null,
+    "fy": null,
+    "cx": null,
+    "cy": null,
+    "distortion": null,
+    "calibrated": false
+  },
+  "operator_notes": "",
+  "take_label": "Sep-10-Test-1"
+}
